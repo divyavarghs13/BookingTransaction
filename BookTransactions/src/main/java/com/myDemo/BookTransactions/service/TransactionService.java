@@ -9,36 +9,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 
-import com.myDemo.BookTransactions.model.Transactionmodel;
+import com.myDemo.BookTransactions.dto.TransactionDTO;
+
 
 @Service
 public class TransactionService {
-	ArrayList<String> aList = new ArrayList<String>();
+	ArrayList<String> aList = new ArrayList<String>();	
 	
-		public ArrayList<String> readAllLinesFromFile(String path) throws IOException {
-
-			FileReader fileReader = new FileReader(path);
-			BufferedReader bufferedReader = new BufferedReader(fileReader);
-			String line = null;
-			while ((line = bufferedReader.readLine()) != null) {
-				aList.add(line);
-			}
-			bufferedReader.close();
-
-			return aList;
-
-		}
-		
-	
-		public List<Transactionmodel> getDataFromCSVtoList(List<String> transactionsStrings) {
-			List<Transactionmodel> transactions = new ArrayList<>();
+		public List<TransactionDTO> getDataFromCSVtoList(String inputTransaction[]) {
+			List<TransactionDTO> transactions = new ArrayList<>();
 
 			/**
 			 * concatenate fname,lname, email to one field as Key to make the list unique
 			 **/
-			for (String transactionString : transactionsStrings) {
+			for (String transactionString : inputTransaction) {
 				String[] column = transactionString.split(",");
 				String fName = column[0];
 				String lName = column[1];
@@ -46,61 +35,53 @@ public class TransactionService {
 				String key = fName + lName + email;
 				int amount = Integer.valueOf(column[3]);
 				String trID = column[4];
-				transactions.add(new Transactionmodel(key, amount, trID));
+				transactions.add(new TransactionDTO(key, amount, trID,fName,lName ,email));
 			}
 			/**
 			 * Sort each row of the file in ascending order considering key field, and if
 			 * key is same this will sort according to transactionID field
 			 **/
-			Collections.sort(transactions, Transactionmodel.NameComparator);
+			Collections.sort(transactions, TransactionDTO.NameComparator);
 			System.out.println(transactions);
 			return transactions;
 		}
 		
 
-		public List<String> findRejectedTransactions(List<Transactionmodel> transactions, int creditLimit) {
+		public JSONArray findRejectedTransactions(List<TransactionDTO> transactions, int creditLimit) {
 
-			List<String> rejectedList = new ArrayList<String>();
-			List<String> keylist = new ArrayList<String>();
-			List<Integer> amountlist = new ArrayList<Integer>();
-			List<String> trIDlist = new ArrayList<String>();
-			
-			int lsize = transactions.size();
-						
-			for (Transactionmodel transaction : transactions) {
-				keylist.add(transaction.getKey());
-				amountlist.add(transaction.getAmount());
-				trIDlist.add(transaction.getTrID());				
-			}								
-
-			if (creditLimit > 0) {
-				
-				if (lsize > 1) {
-					for (int i = 0; i < (lsize); i++) {
-						if (amountlist.get(i) > creditLimit) {		
-							rejectedList.add(trIDlist.get(i).toString());	
-						}
-						else{
-						for (int j = i+1; j <(lsize) ; j++) { 						
-						 if (keylist.get(i).equals(keylist.get(j))) {
-								if (amountlist.get(i) > creditLimit) {
-									rejectedList.add(trIDlist.get(i).toString());
-								}
-								else if ((amountlist.get(i) + amountlist.get(j)) > creditLimit) {
-									rejectedList.add(trIDlist.get(j).toString());
-								}
-							}
-						}
-					}
-					}
-				}
-				if (lsize == 1 && amountlist.get(0) > creditLimit) {				
-					rejectedList.add(trIDlist.get(0).toString());
-				}
-
+			Map<String,Integer> successList = new HashMap<>();
+			Map<String,TransactionDTO> rejectList = new HashMap<>();
+			String user = null;
+			for(TransactionDTO transaction : transactions){
+				int transValue = 0;
+				user = transaction.getFirstName()+" "+transaction.getLastName();
+				if(successList.containsKey(user))
+					transValue = successList.get(user) + transaction.getAmount();
+				else
+					transValue = transaction.getAmount();				
+				if(transValue>creditLimit)
+					rejectList.put(user, transaction);
+				else
+					successList.put(user, transValue);
 			}
-			 System.out.println("Rejected Transactions: " + rejectedList);
-			return rejectedList;
+			
+			JSONArray rejectedArray =  new JSONArray();
+			JSONObject rejectedUser = null;
+			try {
+			for (Map.Entry<String,TransactionDTO> entry : rejectList.entrySet()){
+				rejectedUser = new JSONObject();
+				rejectedUser.put("First Name", entry.getValue().getFirstName());
+				rejectedUser.put("Last Name", entry.getValue().getLastName());
+				rejectedUser.put("Email ID", entry.getValue().getEmail());
+				rejectedUser.put("Transaction Number", entry.getValue().getTrID());
+				rejectedArray.put(rejectedUser);
+			}
+			
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return rejectedArray;
 		}
 
 }
